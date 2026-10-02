@@ -1,0 +1,141 @@
+[profile.default]
+src = "src"
+test = "test"
+libs = ["lib"]
+# Pinned. The 0.7.6 Uniswap V3 tree that `auto_detect_solc` existed for is gone, and an exact
+# version is now load-bearing for a different reason: the hook's address is derived from its
+# creation code, and the compiler version is part of that. Two developers on different svm caches
+# must not produce two different hooks.
+solc = "0.8.26"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 1_000_000
+# ON, and this changed after the 2026-09-09 audit's intake — which found that it had effectively
+# been on in production and off in the tests for the whole of generation 2.
+#
+# The history: this was false because turning it on moves the v4 hook's creation code and therefore
+# its MINED ADDRESS. Uniswap's PositionManager does not compile without IR, so a path-scoped profile
+# was added for that one file — and a side effect of a second profile is that forge emits BOTH
+# `out/X.sol/X.json` and `out/X.sol/X.via-ir.json` for nearly everything. A deploy script's
+# `new X(...)` resolved to the `.via-ir` artifacts, so MAINNET RAN THE IR BUILD while `forge test`
+# compiled the legacy one. The deployment was internally consistent — the script mined the hook
+# against the same IR creation code it then deployed — but every green test was green against a
+# binary that was not on the chain. The two pipelines are intended to be semantically equivalent,
+# and "intended" is exactly the assumption an audit exists to stop taking on faith.
+#
+# So the tests now compile what ships. The hook's address moves with this setting, which is why
+# `test_creationCodeMatchesThePinnedHash` exists and why every salt is re-mined at deployment.
+via_ir = true
+# No metadata appended to the bytecode.
+#
+# It was here for the Uniswap V3 pool's init code hash, and that tree is gone. It stays for the v4
+# hook, which needs it more.
+#
+# A hook's address is `keccak256(0xff ++ deployer ++ salt ++ keccak256(creationCode ++ ctorArgs))`,
+# and Solidity normally appends a CBOR metadata blob whose hash covers the compiler settings, the
+# source paths and the evm version. So anything that moves that blob moves the hook's address, the
+# mined salt stops working, and `BaseHook`'s constructor reverts `HookAddressNotValid`.
+#
+# The V3 incident this originally fixed is worth keeping in view, because the failure shape is the
+# same: the DEX deployed, the factory created pools, and the router computed addresses no pool was
+# at. It went unnoticed because a stale `out/` kept serving the bytecode the committed hash was
+# generated from, so a clean checkout did not build a working DEX. The hook's version of that
+# failure is caught by `test_creationCodeMatchesThePinnedHash` instead of by a user.
+#
+# `cbor_metadata` stays `true`; the exact `solc` above is what pins the version inside the blob.
+bytecode_hash = "none"
+# Tests read the generated emoji allowlist from ./data. The `./out` and v3-periphery entries are
+# gone with the V3 tree — nothing reads compiled artifacts from a test any more, and `DeployWmon`,
+# which deployed Uniswap's own vendored WETH9, no longer exists.
+fs_permissions = [{ access = "read", path = "./data" }]
+remappings = [
+    "openzeppelin/=lib/openzeppelin-contracts/contracts/",
+    "solady/=lib/solady/src/",
+    "forge-std/=lib/forge-std/src/",
+    # OpenZeppelin now exists here twice rather than three times: the 3.4 copy went with the V3
+    # tree, and the two context-scoped remappings that isolated it went with it.
+    #   OZ 5.x   — ours, under both the bare "openzeppelin/" prefix and "@openzeppelin/contracts/"
+    #   OZ 5.0.2 — nested under v4-core, under its own "openzeppelin-contracts/" prefix
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    # Uniswap v4. Only v4-periphery is installed; v4-core is reached through its own nested pin so
+    # exactly ONE v4-core exists in the build. Installing uniswap/v4-core separately resolves to tag
+    # v4.0.0, whose src/types/ has no PoolOperation.sol, and the half-working result is duplicate
+    # type definitions and a silently divergent PoolKey layout. See §Task 1.2.
+    "@uniswap/v4-core/=lib/v4-periphery/lib/v4-core/",
+    "@uniswap/v4-periphery/=lib/v4-periphery/",
+    "permit2/=lib/v4-periphery/lib/permit2/",
+    "solmate/=lib/v4-periphery/lib/v4-core/lib/solmate/",
+    # No "@", no "contracts/" suffix — a real prefix v4-periphery uses for Base64/Strings/
+    # ERC165Checker in the descriptor path. Foundry auto-generates one if omitted, pointing at the
+    # WRONG OpenZeppelin.
+    "openzeppelin-contracts/=lib/v4-periphery/lib/v4-core/lib/openzeppelin-contracts/",
+]
+
+# `libraries` is deliberately absent, and must stay that way.
+#
+# It is part of the solc input, so setting it changes the metadata hash appended to EVERY contract
+# in the project — the hook included — and therefore the hook's mined address. It would also make
+# that hash depend on a per-network library address, so no two networks would agree on where the
+# hook lives.
+#
+# (It was originally absent for the V3 position descriptor's `NFTDescriptor` link, which moved the
+# pool init code hash the same way. That tree is gone; the rule outlived it.)
+#
+# `test/v4/HookAddress.t.sol`'s `test_creationCodeMatchesThePinnedHash` fails the moment this moves.
+# (It used to be `test/dex/DokuPoolAddress.t.sol` guarding the pool init code hash, and the deploy
+# script that linked the descriptor by hand; both went with the V3 tree. The rule outlived them and
+# now has a stricter guard than it did.)
+
+# HISTORY, kept because a reader who finds `via_ir = true` above and a comment saying it must stay
+# false will trust neither. Until 2026-09-09 IR was OFF for our own tree and scoped by path to
+# Uniswap's PositionManager, which does not compile without it. The 2026-09-09 audit then found
+# that mainnet had been deployed from the IR artifact while the tests ran the legacy one — a second
+# compiler profile makes forge emit both `X.json` and `X.via-ir.json`, and the deploy script's
+# `new X()` had resolved to the IR one. IR was turned ON for the whole tree (line 28 above) so that
+# there is one binary, and the mismatch was made impossible to ship instead of impossible to have:
+# `DeployDoku._mineHook` refuses to broadcast unless the creation code equals the pinned hash in
+# `src/v4/HookCreationCode.sol`, and `test/v4/HookAddress.t.sol` fails CI the moment it moves.
+#
+# The two blocks below are therefore REDUNDANT under the current default and are kept on purpose:
+# they are what keeps PositionManager compiling if anyone ever turns the default back off. The
+# 2026-09-11 external re-review flagged the old wording as contradicting the profile; it did.
+#
+# THE PATH MUST BE EXACTLY THIS ONE FILE, if it is ever load-bearing again. A glob over
+# `lib/v4-periphery/src/**` also catches `base/ImmutableState.sol`, which is in `DokuHook`'s own
+# import closure — and compiling that under a different profile moves the hook's creation code,
+# which is its ADDRESS. `test_creationCodeMatchesThePinnedHash` caught it once.
+[[profile.default.additional_compiler_profiles]]
+name = "via-ir"
+via_ir = true
+
+[[profile.default.compilation_restrictions]]
+paths = "lib/v4-periphery/src/PositionManager.sol"
+via_ir = true
+
+# ONE SIDE EFFECT WORTH KNOWING BEFORE IT BITES: with a second profile present, forge emits
+# per-profile artifacts — `out/DokuHook.sol/DokuHook.json` AND `DokuHook.via-ir.json`. The plain one
+# is the default profile's and is the only correct one: it is what `type(DokuHook).creationCode`
+# resolves to and therefore what the hook's mined address is derived from. Anything reading
+# artifacts BY PATH — a deploy script, a hash regeneration command, an off-chain tool — must ask for
+# the unsuffixed file. Deploying the IR-compiled bytecode would put the hook at an address its salt
+# does not produce, and `BaseHook`'s constructor would revert on it.
+
+[profile.default.fuzz]
+runs = 10_000
+
+[profile.default.invariant]
+runs = 512
+depth = 64
+fail_on_revert = false
+
+# A quick profile for the inner TDD loop; the default profile is the gate.
+[profile.fast.fuzz]
+runs = 256
+
+[profile.fast.invariant]
+runs = 32
+depth = 16
+
+[rpc_endpoints]
+monad = "${MONAD_RPC_URL}"
+monad_testnet = "${MONAD_TESTNET_RPC_URL}"

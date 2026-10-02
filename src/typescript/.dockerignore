@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+frontend/.next
+sdk/dist
+.turbo
+**/.turbo
+.env
+*.env
+mock-indexer

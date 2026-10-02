@@ -1,0 +1,10 @@
+import { chromium } from "@playwright/test";
+const b = await chromium.launch({ channel: "chrome" });
+const p = await b.newPage({ viewport: { width: 1440, height: 1150 } });
+p.on("pageerror", (e) => console.log("PAGE ERROR:", e.message.slice(0, 120)));
+await p.goto("https://web-production-13f50.up.railway.app/home", { waitUntil: "domcontentloaded" });
+await p.waitForSelector(".grid-emoji-card", { timeout: 45000 });
+await p.waitForTimeout(4000);
+await p.screenshot({ path: "/tmp/live-home.png" });
+console.log("CARDS:\n" + (await p.$$eval(".doku-card-inner", (e) => e.map(x => x.innerText.replace(/\n+/g," | ")))).join("\n"));
+await b.close();

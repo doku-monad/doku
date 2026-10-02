@@ -1,0 +1,343 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model candlesticks {
+  market_address String
+  period_secs    Int
+  bucket_start   DateTime @db.Timestamptz(6)
+  open           Decimal  @db.Decimal(78, 0)
+  high           Decimal  @db.Decimal(78, 0)
+  low            Decimal  @db.Decimal(78, 0)
+  close          Decimal  @db.Decimal(78, 0)
+  volume_quote   Decimal  @db.Decimal(78, 0)
+  trade_count    Int
+  markets        markets  @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([market_address, period_secs, bucket_start])
+}
+
+model graduations {
+  market_address String   @id
+  pool_address   String
+  quote_asset    String   @default("0x0000000000000000000000000000000000000000")
+  token_id       Decimal  @db.Decimal(78, 0)
+  quote_amount   Decimal  @db.Decimal(78, 0)
+  base_amount    Decimal  @db.Decimal(78, 0)
+  liquidity      Decimal  @db.Decimal(78, 0)
+  block_number   BigInt
+  block_hash     String
+  log_index      Int
+  tx_hash        String
+  ts             DateTime @db.Timestamptz(6)
+  markets        markets  @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tx_hash, log_index])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model indexer_status {
+  id              Int      @id @default(1)
+  last_block      BigInt   @default(0)
+  last_block_hash String?
+  chain_head      BigInt   @default(0)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model market_state {
+  market_address    String  @id
+  quote_raised      Decimal @default(0) @db.Decimal(78, 0)
+  tax_escrow        Decimal @default(0) @db.Decimal(78, 0)
+  last_price        Decimal @default(0) @db.Decimal(78, 0)
+  volume_quote      Decimal @default(0) @db.Decimal(78, 0)
+  trade_count       BigInt  @default(0)
+  holders           Int     @default(0)
+  ready_to_graduate Boolean @default(false)
+  pool_address      String?
+  ready_block       BigInt?
+  block_number      BigInt  @default(0)
+  markets           markets @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model markets {
+  market_address   String             @id
+  token_address    String
+  symbol           String
+  name             String
+  symbol_key       String             @unique
+  creator          String
+  quote_target     Decimal            @db.Decimal(78, 0)
+  total_supply     Decimal            @default(0) @db.Decimal(78, 0)
+  generation       Int                @default(1) @db.SmallInt
+  quote_asset      String             @default("0x0000000000000000000000000000000000000000")
+  quote_decimals   Int                @default(18) @db.SmallInt
+  routing          Int?               @db.SmallInt
+  routed_recipient String?
+  creator_tax_bps  Int                @default(0) @db.SmallInt
+  tax_recipient    String?
+  ticker           String?
+  logo_uri         String?
+  banner_uri       String?
+  description      String?
+  website          String?
+  x                String?
+  telegram         String?
+  metadata_hash    String?
+  block_number     BigInt
+  block_hash       String
+  log_index        Int
+  tx_hash          String
+  created_at       DateTime           @db.Timestamptz(6)
+  candlesticks     candlesticks[]
+  graduations      graduations?
+  market_state     market_state?
+  swaps            swaps[]
+  fee_events       fee_events[]
+  market_rewards   market_rewards?
+  market_stats     market_stats?
+  metadata_updates metadata_updates[]
+  recipient_updates recipient_updates[]
+
+  @@unique([tx_hash, log_index])
+  @@index([quote_asset], map: "markets_quote_asset")
+  @@index([routing], map: "markets_routing")
+  @@index([creator], map: "markets_creator")
+}
+
+model swaps {
+  id             BigInt   @id @default(autoincrement())
+  market_address String
+  trader         String
+  is_buy         Boolean
+  venue          String   @default("curve")
+  quote_amount   Decimal  @db.Decimal(78, 0)
+  base_amount    Decimal  @db.Decimal(78, 0)
+  fee            Decimal  @db.Decimal(78, 0)
+  tax            Decimal  @default(0) @db.Decimal(78, 0)
+  creator_tax    Decimal  @default(0) @db.Decimal(78, 0)
+  quote_raised   Decimal  @db.Decimal(78, 0)
+  price          Decimal  @db.Decimal(78, 0)
+  block_number   BigInt
+  block_hash     String
+  log_index      Int
+  tx_hash        String
+  ts             DateTime @db.Timestamptz(6)
+  markets        markets  @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tx_hash, log_index])
+  @@index([block_number], map: "swaps_block")
+  @@index([market_address, ts(sort: Desc)], map: "swaps_market_ts")
+}
+
+model token_balances {
+  token_address String
+  holder        String
+  balance       Decimal @default(0) @db.Decimal(78, 0)
+
+  @@id([token_address, holder])
+  @@index([token_address], map: "token_balances_nonzero", where: raw("(balance > (0)::numeric)"))
+}
+
+model transfers {
+  id            BigInt   @id @default(autoincrement())
+  token_address String
+  from_address  String
+  to_address    String
+  value         Decimal  @db.Decimal(78, 0)
+  block_number  BigInt
+  block_hash    String
+  log_index     Int
+  tx_hash       String
+  ts            DateTime @db.Timestamptz(6)
+
+  @@unique([tx_hash, log_index])
+  @@index([token_address, block_number], map: "transfers_token_block_idx")
+}
+
+model indexed_blocks {
+  block_number BigInt   @id
+  block_hash   String
+  parent_hash  String
+  indexed_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([block_hash], map: "indexed_blocks_hash")
+}
+
+model indexed_events {
+  block_number BigInt
+  tx_hash      String
+  log_index    Int
+  event_name   String
+
+  @@id([tx_hash, log_index])
+  @@index([block_number], map: "indexed_events_block")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Generation 2 (pairs). Mirrors the additive DDL at the bottom of src/schema.sql, which is what
+// actually creates these — Prisma is here for the generated client's types, not for migrating.
+// ---------------------------------------------------------------------------------------------
+
+model quote_assets {
+  id           String    @id
+  address      String?   @unique
+  symbol       String?
+  name         String?
+  decimals     Int?      @db.SmallInt
+  quote_target Decimal?  @db.Decimal(78, 0)
+  registered   Boolean   @default(false)
+  enabled      Boolean   @default(false)
+  kind         String?
+  blurb        String?
+  underlying   String?
+  icon_domain  String?
+  sort_order   Int       @default(1000)
+  usd_price    Decimal?  @db.Decimal(38, 12)
+  usd_price_at DateTime? @db.Timestamptz(6)
+  block_number BigInt?
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+}
+
+model market_stats {
+  market_address   String    @id
+  market_cap_quote Decimal   @default(0) @db.Decimal(78, 0)
+  market_cap_usd   Decimal?  @db.Decimal(38, 8)
+  volume_24h_quote Decimal   @default(0) @db.Decimal(78, 0)
+  volume_24h_usd   Decimal?  @db.Decimal(38, 8)
+  change_24h       Float?
+  trades_24h       Int       @default(0)
+  last_trade_at    DateTime? @db.Timestamptz(6)
+  ath_quote        Decimal   @default(0) @db.Decimal(78, 0)
+  ath_at           DateTime? @db.Timestamptz(6)
+  holders          Int       @default(0)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  markets          markets   @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([market_cap_quote(sort: Desc)], map: "market_stats_cap")
+  @@index([volume_24h_quote(sort: Desc)], map: "market_stats_vol24")
+  @@index([last_trade_at(sort: Desc)], map: "market_stats_last")
+}
+
+model fee_events {
+  id             BigInt   @id @default(autoincrement())
+  market_address String
+  kind           String
+  recipient      String?
+  quote_asset    String
+  amount         Decimal  @db.Decimal(78, 0)
+  venue          String   @default("curve")
+  block_number   BigInt
+  block_hash     String
+  log_index      Int
+  tx_hash        String
+  ts             DateTime @db.Timestamptz(6)
+  markets        markets  @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tx_hash, log_index, kind])
+  @@index([market_address, kind], map: "fee_events_market")
+  @@index([recipient], map: "fee_events_recipient")
+  @@index([block_number], map: "fee_events_block")
+}
+
+model market_rewards {
+  market_address     String   @id
+  protocol_generated Decimal  @default(0) @db.Decimal(78, 0)
+  protocol_collected Decimal  @default(0) @db.Decimal(78, 0)
+  routed_generated   Decimal  @default(0) @db.Decimal(78, 0)
+  routed_collected   Decimal  @default(0) @db.Decimal(78, 0)
+  tax_generated      Decimal  @default(0) @db.Decimal(78, 0)
+  tax_collected      Decimal  @default(0) @db.Decimal(78, 0)
+  dividends_funded   Decimal  @default(0) @db.Decimal(78, 0)
+  dividends_paid     Decimal  @default(0) @db.Decimal(78, 0)
+  burned_tokens      Decimal  @default(0) @db.Decimal(78, 0)
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+  markets            markets  @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+}
+
+model creator_ledger {
+  id              BigInt   @id @default(autoincrement())
+  who             String
+  quote_asset     String
+  market_address  String?
+  kind            String
+  claimable_delta Decimal  @db.Decimal(78, 0)
+  earned_delta    Decimal  @db.Decimal(78, 0)
+  block_number    BigInt
+  block_hash      String
+  log_index       Int
+  tx_hash         String
+  ts              DateTime @db.Timestamptz(6)
+
+  @@unique([tx_hash, log_index, kind])
+  @@index([who, quote_asset], map: "creator_ledger_who")
+  @@index([block_number], map: "creator_ledger_block")
+}
+
+model creator_balances {
+  who             String
+  quote_asset     String
+  claimable       Decimal  @default(0) @db.Decimal(78, 0)
+  earned_lifetime Decimal  @default(0) @db.Decimal(78, 0)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@id([who, quote_asset])
+}
+
+model metadata_updates {
+  id             BigInt   @id @default(autoincrement())
+  market_address String
+  name           String
+  ticker         String
+  logo_uri       String?
+  banner_uri     String?
+  description    String?
+  website        String?
+  x              String?
+  telegram       String?
+  metadata_hash  String?
+  block_number   BigInt
+  block_hash     String
+  log_index      Int
+  tx_hash        String
+  ts             DateTime @db.Timestamptz(6)
+  markets        markets  @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tx_hash, log_index])
+  @@index([market_address, block_number], map: "metadata_updates_market")
+}
+
+model recipient_updates {
+  id               BigInt   @id @default(autoincrement())
+  market_address   String
+  routed_recipient String?
+  tax_recipient    String?
+  block_number     BigInt
+  block_hash       String
+  log_index        Int
+  tx_hash          String
+  ts               DateTime @db.Timestamptz(6)
+  markets          markets  @relation(fields: [market_address], references: [market_address], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([tx_hash, log_index])
+  @@index([market_address, block_number], map: "recipient_updates_market")
+}
+
+model uploads {
+  cid           String    @id
+  sha256        String
+  bytes         Int
+  mime          String
+  width         Int?
+  height        Int?
+  uploaded_at   DateTime  @default(now()) @db.Timestamptz(6)
+  referenced_by String?
+  referenced_at DateTime? @db.Timestamptz(6)
+  pinned        Boolean   @default(true)
+
+  @@index([uploaded_at], map: "uploads_unreferenced", where: raw("(referenced_by IS NULL)"))
+}

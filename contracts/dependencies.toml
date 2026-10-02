@@ -1,0 +1,95 @@
+# Dependency manifest for contracts/lib.
+#
+# WHAT PINS THE TREES NOW
+#
+# `contracts/lib/` is four real git submodules. The authoritative revision of each is the gitlink
+# recorded in the repo's index — `git submodule status` from the repo root prints them — with the
+# upstream URLs in the repo-root `.gitmodules`. `contracts/foundry.lock`, which `forge install`
+# writes and reads, records the same four revisions in Foundry's own format. A fresh clone gets a
+# buildable tree from `git submodule update --init --recursive`; nothing here has to be installed
+# by hand any more.
+#
+# This file is therefore NO LONGER the pin. It is the second, independent check.
+#
+# WHY A SECOND CHECK
+#
+# A commit pin proves which commit was CHECKED OUT. It does not prove that what is on disk is
+# still that commit: a submodule can be edited in place, half-updated, or left dirty after a
+# rebase, and `forge build` will happily compile the modified tree. The fingerprints below are
+# content hashes of the actual files, so `script/check-deps.sh` catches exactly the case the
+# gitlink cannot see.
+#
+# That matters here more than in most repos. The `DokuHook` address is mined:
+# `keccak256(0xff ++ deployer ++ salt ++ keccak256(creationCode ++ ctorArgs))`, and its creation
+# code includes everything in its import closure. Move `v4-periphery` by one commit — or patch one
+# file inside it — and the mined salt silently stops producing a valid address. `BaseHook`'s
+# constructor then reverts `HookAddressNotValid`, and only after deployment. The contracts are
+# already live on Monad mainnet against this exact tree.
+#
+# Verify with `script/check-deps.sh`. See 08-plan-v4-hook-tax.md §Task 1.10.
+#
+# `fingerprint` = first 16 hex of sha256 over the sorted sha256s of every .sol file in the tree,
+# including the nested submodules a tree carries (v4-periphery's `v4-core` and `permit2`,
+# openzeppelin's `forge-std`/`erc4626-tests`/`halmos-cheatcodes`). It is a drift detector, not a
+# supply-chain guarantee.
+#
+# `rev` here must equal the gitlink. If the two ever disagree, the gitlink is what git will check
+# out — fix whichever is wrong before trusting a build.
+
+[v4-periphery]
+# THE ONE THAT DETERMINES THE HOOK ADDRESS.
+# v4-core is reached through this repo's OWN nested submodule pin — do not add uniswap/v4-core as
+# a sibling submodule, see foundry.toml's remapping comment and §Task 1.2.
+rev         = "dce236d4e2057422d0791d9a973a58765eb46f65"
+fingerprint = "31b54905a18c4d1c"
+sol_files   = 1127
+
+[v4-hooks-public]
+# NOT INSTALLED. `src/v4/BaseHook.sol` is vendored verbatim from this commit because depending on
+# the repo drags in 16 unrelated submodules. Recorded here so the vendored copy can be re-diffed.
+# It is a source file in this repo, not a lib — check-deps.sh does not look at it.
+rev      = "0f731d5de0f4fd60b506b55754d5e6ff086eab7d"
+path     = "src/v4/BaseHook.sol"
+upstream = "src/base/BaseHook.sol"
+
+# ---------------------------------------------------------------------------------------------
+# RECOVERED 2026-09-08. These three were originally installed with `forge install --no-git` on
+# 2026-08-20, which left no `.git` and no lockfile, so this file used to read `UNRECOVERABLE`.
+#
+# They were recovered by search, not by guess: each upstream repository was cloned, every commit
+# in the surrounding window was materialised, and its .sol tree was fingerprinted with the exact
+# function in `script/check-deps.sh`. Where two adjacent commits shared a .sol fingerprint (a
+# commit that touched only CI or a script), the tie was broken by diffing the WHOLE tree —
+# every file, not just .sol — against the installed copy. In all three cases exactly one commit
+# came back byte-for-byte identical. `forge install` then independently wrote the same three
+# revisions into `contracts/foundry.lock`.
+# ---------------------------------------------------------------------------------------------
+
+[openzeppelin-contracts]
+# master, one commit before v5.7.0's successor tag; package.json reads 5.7.0.
+rev = "5037e348c5206f2706b0de6c49698cece43aec0c"
+fingerprint = "ce0953f1aeb825d7"
+sol_files = 474
+
+[solady]
+# master; package.json reads 0.1.26. NOT the v0.1.26 tag — the tag fingerprints differently.
+rev = "cedd7936a11807acd819c9f6acf48fdcefee3f73"
+fingerprint = "336512ea366ca324"
+sol_files = 277
+
+[forge-std]
+# master, v1.16.2-12-g680ee66. NOT the v1.16.2 tag.
+rev = "680ee6692649dcc7c617e05b2144932618264a83"
+fingerprint = "116248b72f45e420"
+sol_files = 50
+
+# ---------------------------------------------------------------------------------------------
+# REMOVED by the v4 migration, and deliberately not reinstalled: `v3-core`, `v3-periphery`,
+# `openzeppelin-contracts-v3`, `uniswap-lib`, `base64-sol`. All five existed only to build this
+# repo's Uniswap V3 fork, which DOKU no longer graduates into. `openzeppelin-contracts-v3` in
+# particular was the 0.7.6 line the V3 tree needed and nothing else used.
+#
+# If a fifth submodule ever appears in `.gitmodules`, something imported a V3 path again — find it
+# before accepting the tree. The 0.7.6 OpenZeppelin especially: it and the current one both answer
+# to `openzeppelin/`, and which one a file gets is decided by a remapping.
+# ---------------------------------------------------------------------------------------------

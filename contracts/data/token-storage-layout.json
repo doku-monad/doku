@@ -1,0 +1,80 @@
+[
+  {
+    "label": "_balances",
+    "slot": 0,
+    "offset": 0,
+    "type": "mapping(address => uint256)"
+  },
+  {
+    "label": "_allowances",
+    "slot": 1,
+    "offset": 0,
+    "type": "mapping(address => mapping(address => uint256))"
+  },
+  {
+    "label": "_totalSupply",
+    "slot": 2,
+    "offset": 0,
+    "type": "uint256"
+  },
+  {
+    "label": "_name",
+    "slot": 3,
+    "offset": 0,
+    "type": "string"
+  },
+  {
+    "label": "_symbol",
+    "slot": 4,
+    "offset": 0,
+    "type": "string"
+  },
+  {
+    "label": "_tokenName",
+    "slot": 5,
+    "offset": 0,
+    "type": "string"
+  },
+  {
+    "label": "_tokenSymbol",
+    "slot": 6,
+    "offset": 0,
+    "type": "string"
+  },
+  {
+    "label": "_initialised",
+    "slot": 7,
+    "offset": 0,
+    "type": "bool"
+  },
+  {
+    "label": "curve",
+    "slot": 7,
+    "offset": 1,
+    "type": "address"
+  },
+  {
+    "label": "trackHistory",
+    "slot": 7,
+    "offset": 21,
+    "type": "bool"
+  },
+  {
+    "label": "_balanceHistory",
+    "slot": 8,
+    "offset": 0,
+    "type": "mapping(address => struct Checkpoints.Trace208)"
+  },
+  {
+    "label": "_supplyHistory",
+    "slot": 9,
+    "offset": 0,
+    "type": "struct Checkpoints.Trace208"
+  },
+  {
+    "label": "_metadataURI",
+    "slot": 10,
+    "offset": 0,
+    "type": "string"
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "description": "Hairbot is the world's most distinguished buy alert bot, engineered for elite DOKU Telegram groups. With lightning-fast alerts, a sleek, customizable design, and effortless deployment, Hairbot ensures no DOKU purchase goes unnoticed. Free to use, simple to integrate, built for the DOKU community who demands excellence.",
+    "id": "0",
+    "name": "hairbot",
+    "url": "https://hairclub.io/hairbot"
+  },
+  {
+    "description": "Are you ready for the ultimate space adventure? Rocket 100 takes you on a high-speed journey through space! \ud83d\ude80\ud83d\udcaf Defeat alien hordes, climb the leaderboard, and feel the thrill. Can you make it to the moon?",
+    "id": "1",
+    "name": "emojirocket100",
+    "url": "https://telegram.me/emojirocket100_bot"
+  },
+  {
+    "description": "A public goods project for an Aptos red envelope robot, distributing red envelopes across the entire chain, utilizing Aptos native randomness, and supporting DOKU tokens.",
+    "id": "2",
+    "name": "Aptos RedEnvelope Bot",
+    "url": "https://telegram.me/Faintlight_RedEnvelope_Bot"
+  },
+  {
+    "description": "Emoji Aliens hate to see an egirl winning. Fight the alien simps and survive their lovebombs",
+    "id": "3",
+    "name": "Egirl Invader",
+    "url": "https://anime-invader.vercel.app/"
+  }
+]

@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "declaration": false,
+    "sourceMap": true,
+    // The service is run with `tsx` in development and from `dist` in a container. `bundler`
+    // resolution does not describe what Node does with the emitted files, so the build resolves
+    // the way the runtime will.
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext"
+  },
+  "include": ["src"],
+  "exclude": ["test"]
+}

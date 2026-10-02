@@ -1,0 +1,15 @@
+cache/
+out/
+broadcast/
+# Anchored: only Foundry's dependency directory at the project root, not any nested src/lib.
+/lib/
+.env
+data/allowlist.json
+# Deployment records are TRACKED — deployments/mainnet.json and deployments/testnet.json are the
+# shared record three services have to agree on, and a file that is not in the repository cannot be
+# that. They hold addresses only; no key, no RPC URL, no secret of any kind.
+#
+# The exception is the local one. `script/deploy.sh local` rewrites it on every run against a
+# throwaway chain, so it is an artifact of a run rather than a record of a deployment — the same
+# reason broadcast/ is ignored above.
+/deployments/local.json
